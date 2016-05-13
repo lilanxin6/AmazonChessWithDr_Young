@@ -12,28 +12,31 @@ import java.awt.event.MouseListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.Arrays;
 import java.util.Calendar;
 
 public class ChessBoard extends Frame{ 
 	
-	public int isWho;                          //判断当前是谁在行棋
-	public int startIofHI,startJofHI;     //判断白棋的起始坐标(i,j)
-	public int endIofHI,endJofHI;         //判断白棋的结束坐标(i,j)
-	public int obstacleI,obstacleJ;             //判断障碍的放置的坐标(i,j)
+	public AI ai = new AI();
+	public boolean gameStart = false;         //判断游戏是否开始，初始为不开始
+	public int whoIsAI = 1;                   //判断谁是AI，1代表黑方，2代表白方
+	public int isWho;                         //判断当前是谁在行棋
+	public int startIofHI,startJofHI;         //判断白棋的起始坐标(i,j)
+	public int endIofHI,endJofHI;             //判断白棋的结束坐标(i,j)
+	public int obstacleI,obstacleJ;           //判断障碍的放置的坐标(i,j)
 	
 	private static final long serialVersionUID = 1L;
 	public static final int GAME_WIDTH = 720;   //棋盘宽度
 	public static final int GAME_HEIGHT = 660;  //棋盘高度
 	
+	public static int steps=0;
+	public static final int BLACKISAI   = 1;    //黑方是AI
+	public static final int WHITEISAI   = 2;    //白方是AI
 	public static final int NOCHESS     = 0;    //无棋
 	public static final int BLACHCHESS  = 1;    //黑棋
 	public static final int WHITECHESS  = 2;    //白棋
 	public static final int OBSTACLE    = 3;    //障碍
-	public static int steps=0;
 	public static final String BLACKTIME ="黑方用时：";
 	public static final String WHITETIME ="白方用时：";
 	
@@ -59,6 +62,7 @@ public class ChessBoard extends Frame{
 	Button whiteChessButton   =new Button();   //白方皇后的位置
 	Button blackObstacleButton=new Button();   //黑放障碍的位置
 	Button whiteObstacleButton=new Button();   //白方障碍的位置
+	Button legalButton        =new Button();   //显示当前HI的步骤是否合法
 	
 	boolean timeStart=false;
 	int timeStartFlag=0;
@@ -231,87 +235,42 @@ public class ChessBoard extends Frame{
 				/*在棋盘内点击才有效*/
 				if((xCoordinate>=70)&& (xCoordinate<=570) && (yCoordinate>=80) && (yCoordinate<=580)){
 					if(xyTransform()){   //将获得的坐标转化到数组当中去。
-						boolean flag=false;
-						if(isWho == 1){
-							//检测白方皇后行棋是否规范
-							//规范则更新界面
-							//System.out.println(""+avaliable(startIofHI,endIofHI,startJofHI,endJofHI));
-							//public int startIofHI,startJofHI;     //判断白棋的起始坐标(i,j)
-							//public int endIofHI,endJofHI;         //判断白棋的结束坐标(i,j)
-							
-							flag=avaliable(startIofHI,endIofHI,startJofHI,endJofHI);
-							try {
-								fileI(startIofHI,endIofHI,startJofHI,endJofHI,isWho);
-								byte regret[]= new byte[5];
-								regret=fileO();
-							} catch (IOException e1) {
-								// TODO Auto-generated catch block
-								e1.printStackTrace();
+						repaint();
+						if(whoIsAI == BLACKISAI){
+							if(isWho == 4){
+								//黑方为AI，返回黑方的皇后的起始和结束坐标，返回障碍的坐标
+								//将坐标放入数组，并repaint()
+								ai.setBoardArray(chess);
+								ai.setWhoIsAI(whoIsAI);
+								ai.queenSearch();
+								isNowBlack = false;
+								
 							}
 						}
-						else if(isWho == 2){
-							//检测白方障碍是否规范
-							//规范则更新界面
-							//然后调用AI程序
+						else if(whoIsAI == WHITEISAI){
+							if(isWho == 2){
+								//白方为AI，返回白方的皇后的起始和结束坐标，返回障碍的坐标
+								//讲坐标放入数组，并repaint()
+								isNowBlack = true;
+							}
 						}
-						repaint();       //更新界面，执行的是update()程序。
 					}
 				}
 			}
-		});
-		
-		new Thread(new myThread()).start();
+		});		
 	}
-	private byte[] fileO() throws IOException{
-		File file = new File("log","war.txt");
-		RandomAccessFile war = new RandomAccessFile(file, "rw");
-		war.seek(0);
-		//一次性把文件中的内容读取到字节数组中
-		byte[] buf = new byte[(byte)war.length()];
-		war.read(buf);
-		//把每个字节的内容依次输出
-		for(int i=0;i<(byte)war.length();i++)
-			System.out.println(""+i+"字节为:"+""+buf[i]);
-		byte[] retur = new byte[5];
-		for(int i=0;i<5;i++){
-			int temp=steps-1;
-			if(temp>0)
-			retur[i]=buf[(int)(temp*5)+i-5];
-		}
-		return retur;
-	}
-	//flag值说明：1：黑皇后；2：黑障碍；3：白皇后；4：白障碍；5：悔棋。 
-	private void fileI(int startI,int endI,int startJ,int endJ,int flag) throws IOException{
-		File log = new File("log");
-		if(!log.exists())
-			log.mkdir();
-		File file = new File(log,"war.txt");
-		if(!file.exists())
-			file.createNewFile();
-			
-		RandomAccessFile war = new RandomAccessFile(file, "rw");
-		
-		//悔棋只是我们自己点错了而已，所以只需要将写入指针前移5位就可以了。
-		if(flag==5&&steps!=0)
-			steps--;
-		//移动写入指针
-		war.seek(5*steps);
-		steps++;
-		//写入标志，标记后四字节是谁的坐标
-		war.write(flag+10);
-		//写入坐标
-		war.write(startI);war.write(endI);war.write(startJ);war.write(endJ);
-		
-		war.close();
-	}
-	boolean avaliable(int starti,int endi,int startj,int endj){
+	
+	/*
+	 * 行棋合法性检测
+	 */
+	private boolean avaliable(int starti,int endi,int startj,int endj){
 		if(Math.abs(starti-endi)==Math.abs(startj-endj)){
 			//斜向走时候如果有障碍就返回false
 			boolean flag=true;
 			int xForward=0,yForward=0;
 			xForward=(endi-starti)/Math.abs(endi-starti);
 			yForward=(endj-startj)/Math.abs(endj-startj);
-			for(int i=0;i<Math.abs(starti-endi);i++){
+			for(int i=1;i<Math.abs(starti-endi);i++){
 				int tempx=0,tempy=0;
 				tempx=(int)(xForward*i);
 				tempy=(int)(yForward*i);
@@ -327,7 +286,7 @@ public class ChessBoard extends Frame{
 			boolean flag=true;
 			int yForward=0;
 			yForward=(endj-startj)/Math.abs(endj-startj);
-			for(int i=0;i<Math.abs(startj-endj);i++){
+			for(int i=1;i<Math.abs(startj-endj);i++){
 				int temp=0;
 				temp=(int)(yForward*i);
 				if(chess[starti][startj+temp]!=NOCHESS){
@@ -341,7 +300,7 @@ public class ChessBoard extends Frame{
 			boolean flag=true;
 			int xForward=0;
 			xForward=(endi-starti)/Math.abs(endi-starti);
-			for(int i=0;i<Math.abs(starti-endi);i++){
+			for(int i=1;i<Math.abs(starti-endi);i++){
 				int temp=0;
 				temp=(int)(xForward*i);
 				if(chess[starti+temp][startj]!=NOCHESS){
@@ -353,81 +312,147 @@ public class ChessBoard extends Frame{
 		}
 		else return false;
 	}
+	
 	/*
-	 * 坐标转换
+	 * 坐标转换,确保坐标转换成功，并且保存到数组之中
 	 */
 	public boolean xyTransform(){
 		iArray=(yCoordinate-80)/50;  //数组中的i
 		jArray=(xCoordinate-70)/50;  //数组中的j
-		if(isChess == 0){            //当前行棋的不是黑方皇后或者白方皇后，进行放置障碍操作
-			if(chess[iArray][jArray]==NOCHESS){
-				if(isNowBlack == true){
-					chess[iArray][jArray] = OBSTACLE;  //数组更新
-					isNowBlack = false;
+		boolean flag ;
+		if(isChess == 0){            //当前行棋的不是皇后，进行放置障碍操作
+			if(chess[iArray][jArray]==NOCHESS){ //如果点击的位置没有棋子，才进行行棋合法的判断
+				flag=avaliable(endIofHI,iArray,endJofHI,jArray);//判断是否合法
+				if(flag){                        //如果合法，数组放入障碍，ischess加1
+					chess[iArray][jArray]=OBSTACLE;
 					isChess    = 1;
-					isWho = 5;
-					return true;
+					if(whoIsAI == BLACKISAI){
+						isWho = 4;
+					}
+					else if(whoIsAI == WHITEISAI){
+						isWho = 2;
+					}
+					legalButton.setLabel(" ");
+					try {
+						fileI(iArray,iArray,jArray,jArray,isWho);
+					} catch (IOException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
+					}
+					return true;					
 				}
-				else {
-					chess[iArray][jArray] = OBSTACLE;  //数组更新
-					obstacleI=iArray;                  //存储障碍的坐标，此时AI是黑方
-					obstacleJ=jArray;
-					isNowBlack =true;
-					isChess    = 1;
-					isWho = 2;
-					return true;
+				else{                         //如果不合法，则上显示非法操作信息
+					if(whoIsAI == BLACKISAI){
+						legalButton.setLabel("白方障碍非法");
+						isNowBlack = true;
+					}
+					else if(whoIsAI == WHITEISAI){
+						legalButton.setLabel("黑方障碍非法");
+						isNowBlack = false;
+					}
+					return false;
 				}
-			 }
-		}
-		else if(isChess == 1){
-			if((chess[iArray][jArray]==WHITECHESS) && (isNowBlack == false)){
-				isChess = 2;
-			    iArrayTemp = iArray;  //把点击的皇后位置存到这里
-				jArrayTemp = jArray;
-				isWho = 5;
-				return true;
-			}
-			else if((chess[iArray][jArray]==BLACHCHESS)&& (isNowBlack==true)){
-				isChess = 2;
-				iArrayTemp = iArray;  //把点击的皇后位置存到这里
-				jArrayTemp = jArray;
-				isWho = 5;
-				return true;
 			}
 			return false;
 		}
-		else if(isChess == 2){ 
-			if(chess[iArray][jArray]==NOCHESS){
-				isChess =0 ;
-				chess[iArray][jArray]= chess[iArrayTemp][jArrayTemp];
-				chess[iArrayTemp][jArrayTemp] = NOCHESS;
-				if(isNowBlack==false){          //存储白方皇后的位置
-					startIofHI=iArrayTemp;
-					startJofHI=jArrayTemp;
-					endIofHI=iArray;
-					endJofHI=jArray;
-					isWho = 1;
+		else if(isChess == 1){                  //当前行棋是第一次点击皇后
+			if((whoIsAI==1)){
+				if(chess[iArray][jArray] == WHITECHESS ){
+					isChess = 2;
+					isWho   = 5;
+					iArrayTemp = iArray;  //把点击的皇后位置存到这里
+					jArrayTemp = jArray;
+					legalButton.setLabel(" ");
+					return true;
 				}
-				else{
-					
+			}
+			else if(whoIsAI == 2){
+				if(chess[iArray][jArray] == BLACHCHESS){
+					isChess = 2;
+					isWho   = 5;
+					iArrayTemp = iArray;  //把点击的皇后位置存到这里
+					jArrayTemp = jArray;
+					legalButton.setLabel(" ");
+					return true;
 				}
-				return true;
 			}
-			if((chess[iArray][jArray]==WHITECHESS) && (isNowBlack == false)){
-				isChess = 2;
-				iArrayTemp = iArray;  //把点击的皇后位置存到这里
-				jArrayTemp = jArray;
-				isWho = 5;
-				return true;
-			}
-			else if((chess[iArray][jArray]==BLACHCHESS)&& (isNowBlack==true)){
-				isChess = 2;
-				iArrayTemp = iArray;  //把点击的皇后位置存到这里
-				jArrayTemp = jArray;
-				isWho = 5;
-				return true;
-			}
+			return false;
 		}
+		else if(isChess == 2){                  //当前行棋是第二次点击皇后
+			if(whoIsAI == 1){
+				if(chess[iArray][jArray] == NOCHESS){
+					flag = avaliable(iArrayTemp, iArray, jArrayTemp, jArray);
+					if(flag == false){
+						legalButton.setLabel("白方皇后行棋违法");
+						isChess = 2;
+						isWho = 5;
+						return false;
+					}
+					else if(flag){
+						endIofHI=iArray;
+						endJofHI=jArray;
+						chess[iArray][jArray]        =WHITECHESS;
+						chess[iArrayTemp][jArrayTemp]=NOCHESS;
+						isChess = 0;
+						isWho = 3;
+						legalButton.setLabel(" ");
+						try {
+							fileI(iArrayTemp,iArray,jArrayTemp,jArray,isWho);
+						} catch (IOException e1) {
+							// TODO Auto-generated catch block
+							e1.printStackTrace();
+						}
+						return true;
+					}
+				}
+				else if(chess[iArray][jArray]==WHITECHESS){
+					isChess = 2;
+					isWho   = 5;
+					iArrayTemp = iArray;  //把点击的皇后位置存到这里
+					jArrayTemp = jArray;
+					legalButton.setLabel(" ");
+					return true;
+				}
+			}
+			else if(whoIsAI == 2){
+				if(chess[iArray][jArray] == NOCHESS){
+					flag = avaliable(iArrayTemp, iArray, jArrayTemp, jArray);
+					if(flag == false){
+						legalButton.setLabel("黑方皇后行棋违法");
+						isChess = 2;
+						isWho = 5;
+						legalButton.setLabel(" ");
+						return false;
+					}
+					else if(flag){
+						endIofHI=iArray;
+						endJofHI=jArray;
+						chess[iArray][jArray]=BLACHCHESS;
+						chess[iArrayTemp][jArrayTemp]=NOCHESS;
+						isChess = 0;
+						isWho = 1;
+						legalButton.setLabel(" ");
+						try {
+							fileI(iArrayTemp,iArray,jArrayTemp,jArray,isWho);
+						} catch (IOException e1) {
+							// TODO Auto-generated catch block
+							e1.printStackTrace();
+						}
+						return true;
+					}
+				}
+				else if(chess[iArray][jArray]==BLACHCHESS){
+					isChess = 2;
+					isWho   = 5;
+					iArrayTemp = iArray;  //把点击的皇后位置存到这里
+					jArrayTemp = jArray;
+					legalButton.setLabel(" ");
+					return true;
+				}
+			}
+			return false;
+		}
+		
 		return false;
 	}
 
@@ -438,14 +463,158 @@ public class ChessBoard extends Frame{
 		startButton.setLocation(580,80);
 		startButton.setSize(120, 50);
 		startButton.setBackground(new Color(0xFF,0xE1,0xFF));
+		startButton.addMouseListener(new MouseListener() {
+			
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mousePressed(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mouseExited(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mouseEntered(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				// TODO Auto-generated method stub
+				gameStart = true;
+				new Thread(new myThread()).start();
+			}
+		});
 		this.add(startButton);
 		regretButton.setLocation(580,150);
 		regretButton.setSize(120, 50);
 		regretButton.setBackground(new Color(0xFF,0xE1,0xFF));
+		regretButton.addMouseListener(new MouseListener() {
+			
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mousePressed(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mouseExited(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mouseEntered(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				// TODO Auto-generated method stub
+				byte[] buf = new byte[5];
+				try {
+					buf = fileO();
+					if(steps>0){
+						if(isWho == 1){    //如果当前是黑方皇后
+							iArrayTemp = buf[1];
+							jArrayTemp = buf[3];
+							chess[buf[2]][buf[4]] = NOCHESS;
+							chess[iArrayTemp][jArrayTemp] = BLACHCHESS;
+							isChess = 2;
+							isWho = 4;
+							steps--;
+						}
+						else if(isWho == 2){     //如果当期是黑方障碍
+							chess[buf[1]][buf[3]] = NOCHESS;
+							isChess = 0;
+							isWho = 1;
+							steps--;
+						}
+						else if(isWho == 3){    //如果当前是白方皇后
+							iArrayTemp = buf[1];
+							jArrayTemp = buf[3];
+							chess[buf[2]][buf[4]] = NOCHESS;
+							chess[iArrayTemp][jArrayTemp] = WHITECHESS;
+							isChess = 2;
+							isWho = 2;
+							steps--;
+						}
+						else if(isWho == 4){    //如果当前是白方障碍
+							chess[buf[1]][buf[3]] = NOCHESS;
+							isChess = 0;
+							isWho = 3;
+							steps--;
+						}
+						repaint();
+					}
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+		});
 		this.add(regretButton);
 		changeButton.setLocation(580, 220);
 		changeButton.setSize(120, 50);
 		changeButton.setBackground(new Color(0xFF,0xE1,0xFF));
+		changeButton.setLabel("AI：黑方");
+        changeButton.addMouseListener(new MouseListener() {
+			
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mousePressed(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mouseExited(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mouseEntered(MouseEvent e) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				// TODO Auto-generated method stub
+				if(whoIsAI == 1){
+					whoIsAI = 2;
+					changeButton.setLabel("AI：白方");
+				}
+				else if(whoIsAI == 2){
+					whoIsAI = 1;
+					changeButton.setLabel("AI：黑方");
+				}
+			}
+		});
 		this.add(changeButton);
 		blackChessButton.setLocation(580, 290);
 		blackChessButton.setSize(120, 50);
@@ -471,6 +640,10 @@ public class ChessBoard extends Frame{
 		whiteTimeButton.setSize(200, 50);
 		whiteTimeButton.setBackground(Color.WHITE);
 		this.add(whiteTimeButton);
+		legalButton.setLocation(580, 570);
+		legalButton.setSize(120, 50);
+		legalButton.setBackground(new Color(0xFF,0xE1,0xFF));
+		this.add(legalButton);
 	}
 	
 	/*
@@ -529,5 +702,48 @@ public class ChessBoard extends Frame{
 				e.printStackTrace();
 			}
 		}
+	}
+	
+	/*
+	 *读取文件 
+	 */
+	private byte[] fileO() throws IOException{
+		File file = new File("log","war.txt");
+		RandomAccessFile war = new RandomAccessFile(file, "rw");
+		war.seek(0);
+		//一次性把文件中的内容读取到字节数组中
+		byte[] buf = new byte[(byte)war.length()];
+		war.read(buf);
+		//把每个字节的内容依次输出
+		byte[] retur = new byte[5];
+		for(int i=0;i<5;i++){
+			int temp=steps-1;
+			if(temp>=0)
+			retur[i]=buf[(int)(temp*5)+i];
+		}
+		return retur;
+	}
+	/*
+	 * 写文件
+	 */
+	//flag值说明：1：黑皇后；2：黑障碍；3：白皇后；4：白障碍；5：悔棋。 
+	private void fileI(int startI,int endI,int startJ,int endJ,int flag) throws IOException{
+		File log = new File("log");
+		if(!log.exists())
+			log.mkdir();
+		File file = new File(log,"war.txt");
+		if(!file.exists())
+			file.createNewFile();
+			
+		RandomAccessFile war = new RandomAccessFile(file, "rw");
+		
+		//移动写入指针
+		war.seek(5*steps);
+		steps++;
+		//写入标志，标记后四字节是谁的坐标
+		war.write(flag+10);
+		//写入坐标
+		war.write(startI);war.write(endI);war.write(startJ);war.write(endJ);
+		war.close();
 	}
 }
